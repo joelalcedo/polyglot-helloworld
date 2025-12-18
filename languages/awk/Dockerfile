@@ -2,4 +2,4 @@
 FROM alpine:3.20
 WORKDIR /app
 COPY hello.awk .
-CMD ["sh", "-c", "echo \"Hello, world!\""]
+CMD ["sh", "-c", "awk -f hello.awk"]

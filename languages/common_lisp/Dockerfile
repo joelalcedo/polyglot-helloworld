@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
 FROM alpine:3.20
 WORKDIR /app
-COPY hello.common_lisp .
-CMD ["sh", "-c", "echo \"Hello, world!\""]
+RUN apk add --no-cache sbcl
+COPY hello.lisp .
+CMD ["sh", "-c", "sbcl --script hello.lisp"]

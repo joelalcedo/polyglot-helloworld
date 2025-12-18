@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
-FROM alpine:3.20
+FROM debian:bookworm-slim
 WORKDIR /app
-COPY hello.forth .
-CMD ["sh", "-c", "echo \"Hello, world!\""]
+RUN apt-get update && apt-get install -y --no-install-recommends gforth && rm -rf /var/lib/apt/lists/*
+COPY hello.fs .
+CMD ["sh", "-c", "gforth hello.fs"]

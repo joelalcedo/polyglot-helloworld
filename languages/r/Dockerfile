@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM alpine:3.20
+FROM r-base:latest
 WORKDIR /app
-COPY hello.r .
-CMD ["sh", "-c", "echo \"Hello, world!\""]
+COPY hello.R .
+CMD ["sh", "-c", "Rscript hello.R"]

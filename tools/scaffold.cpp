@@ -1,3 +1,13 @@
+// scaffold.cpp (drop-in replacement)
+//
+// Fixes remaining failures:
+// - COBOL: gnucobol defaults to fixed-format; your hello.cob is free-format.
+//          We automatically add `-free` to `cobc` invocations for slug=cobol.
+// - Emojicode: previous injection broke the apt-get continuation (`\`), causing
+//              "build-essential: not found". We now *replace* emojicode's
+//              install_cmd with a robust heredoc that installs LLVM/Clang 8 on
+//              Ubuntu 20.04 and builds emojicode without fragile line-splices.
+
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
@@ -35,19 +45,38 @@ static std::string lower(std::string s) {
   return s;
 }
 
+// Unescape TSV fields (supports \n \t \r \\ \" \')
 static std::string unescape(const std::string& s) {
   std::string out;
   out.reserve(s.size());
   for (size_t i = 0; i < s.size(); ++i) {
     if (s[i] == '\\' && i + 1 < s.size()) {
       char n = s[i + 1];
-      if (n == 'n') { out.push_back('\n'); ++i; continue; }
-      if (n == 't') { out.push_back('\t'); ++i; continue; }
+      if (n == 'n')  { out.push_back('\n'); ++i; continue; }
+      if (n == 't')  { out.push_back('\t'); ++i; continue; }
+      if (n == 'r')  { out.push_back('\r'); ++i; continue; }
       if (n == '\\') { out.push_back('\\'); ++i; continue; }
+      if (n == '"')  { out.push_back('"');  ++i; continue; }
+      if (n == '\'') { out.push_back('\''); ++i; continue; }
     }
     out.push_back(s[i]);
   }
   return out;
+}
+
+static std::string strip_utf8_bom(std::string s) {
+  // UTF-8 BOM: EF BB BF
+  if (s.size() >= 3 &&
+      (unsigned char)s[0] == 0xEF &&
+      (unsigned char)s[1] == 0xBB &&
+      (unsigned char)s[2] == 0xBF) {
+    s.erase(0, 3);
+  }
+  return s;
+}
+
+static bool ends_with_nl(const std::string& s) {
+  return !s.empty() && (s.back() == '\n');
 }
 
 // Docker exec-form CMD is JSON. Escape so generated Dockerfile is always valid JSON.
@@ -75,12 +104,35 @@ static std::string json_escape(const std::string& s) {
   return out;
 }
 
-static bool write_file_if_needed(const fs::path& p, const std::string& content, bool force) {
-  if (fs::exists(p) && !force) return false;
+static std::string read_file_or_empty(const fs::path& p) {
+  std::ifstream f(p, std::ios::binary);
+  if (!f) return "";
+  std::ostringstream oss;
+  oss << f.rdbuf();
+  return oss.str();
+}
+
+// Writes if missing OR content differs (durable; avoids needing --force).
+static bool write_file_if_changed(const fs::path& p, const std::string& content) {
+  std::string existing = read_file_or_empty(p);
+  if (!existing.empty() && existing == content) return false;
+
   std::ofstream f(p, std::ios::binary);
   if (!f) throw std::runtime_error("Failed to write: " + p.string());
   f << content;
   return true;
+}
+
+// Keep --force semantics for people who want to blast everything,
+// but the default behavior now still updates when content differs.
+static bool write_file(const fs::path& p, const std::string& content, bool force) {
+  if (force) {
+    std::ofstream f(p, std::ios::binary);
+    if (!f) throw std::runtime_error("Failed to write: " + p.string());
+    f << content;
+    return true;
+  }
+  return write_file_if_changed(p, content);
 }
 
 static bool looks_like_header(const std::vector<std::string>& cols) {
@@ -127,7 +179,6 @@ static std::vector<std::string> shellish_split(const std::string& s) {
 }
 
 static std::string normalize_filename(const std::string& tok) {
-  // Strip leading ./ and any directories, keep just the leaf name.
   fs::path p(tok);
   auto leaf = p.filename().string();
   if (leaf.rfind("./", 0) == 0) leaf = leaf.substr(2);
@@ -151,8 +202,6 @@ static void remove_quiet(const fs::path& p) {
 }
 
 static void remove_case_insensitive_conflicts(const fs::path& dir, const std::string& target) {
-  // On default macOS filesystems, changing only case can be tricky.
-  // Remove any file whose lower(name) matches lower(target) but name != target.
   std::error_code ec;
   if (!fs::exists(dir, ec)) return;
 
@@ -165,9 +214,131 @@ static void remove_case_insensitive_conflicts(const fs::path& dir, const std::st
       remove_quiet(entry.path());
     }
   }
-  // Also remove exactly-target path if it exists (force regeneration cases).
-  // (On case-insensitive FS this may remove the “other case” too, which is fine.)
   remove_quiet(dir / target);
+}
+
+struct LangSpec {
+  std::string slug;
+  std::string file;
+  std::string base_image;
+  std::string install_cmd;
+  std::string env_path;
+  std::string build_cmd;
+  std::string run_cmd;
+  std::string hello;
+};
+
+static bool icontains(const std::string& hay, const std::string& needle) {
+  auto h = lower(hay);
+  auto n = lower(needle);
+  return h.find(n) != std::string::npos;
+}
+
+static void replace_all(std::string& s, const std::string& from, const std::string& to) {
+  if (from.empty()) return;
+  size_t pos = 0;
+  while ((pos = s.find(from, pos)) != std::string::npos) {
+    s.replace(pos, from.size(), to);
+    pos += to.size();
+  }
+}
+
+static void ensure_contains_pkg(std::string& install_cmd, const std::string& pkg_token) {
+  // Very light heuristic: only add if not already present.
+  if (icontains(install_cmd, pkg_token)) return;
+  // Try to insert right after "--no-install-recommends" if present.
+  auto key = std::string("--no-install-recommends");
+  auto p = install_cmd.find(key);
+  if (p != std::string::npos) {
+    p += key.size();
+    install_cmd.insert(p, " " + pkg_token);
+  } else {
+    // Otherwise just append token (works for simple one-line installs)
+    install_cmd += " " + pkg_token;
+  }
+}
+
+// Durable fixups so you don't hand-edit Dockerfiles.
+static void apply_fixups(LangSpec& s) {
+  // COBOL:
+  // Your source is free-format (starts in column 1). GnuCOBOL defaults to fixed-format,
+  // which causes "invalid indicator ... at column 7". Add `-free` to cobc.
+  if (s.slug == "cobol") {
+    if (icontains(s.build_cmd, "cobc") && !icontains(s.build_cmd, "-free")) {
+      // Insert "-free" after "cobc" token.
+      // Handles: "cobc -x ..." and "cobc ...".
+      replace_all(s.build_cmd, "cobc -", "cobc -free -");
+      if (s.build_cmd.rfind("cobc ", 0) == 0 && !icontains(s.build_cmd, "cobc -free")) {
+        // If it was "cobc hello.cob ..." (no flags), just prefix.
+        replace_all(s.build_cmd, "cobc ", "cobc -free ");
+      }
+      // If still not present (weird formatting), append as last resort.
+      if (!icontains(s.build_cmd, "-free")) s.build_cmd = "cobc -free " + s.build_cmd.substr(5);
+    }
+  }
+
+  // Emojicode:
+  // Don’t splice into the user heredoc (it’s easy to break "\" continuations).
+  // Instead, normalize to Ubuntu 20.04 and replace install_cmd with a robust heredoc
+  // that installs LLVM/Clang 8 properly and builds emojicode.
+  if (s.slug == "emojicode") {
+    s.base_image = "ubuntu:20.04";
+    s.env_path   = "/usr/local/bin";
+
+    s.install_cmd =
+      "<<'EOF'\n"
+      "set -e\n"
+      "export DEBIAN_FRONTEND=noninteractive\n"
+      "apt-get update\n"
+      "\n"
+      "# Toolchain + deps\n"
+      "apt-get install -y --no-install-recommends \\\n"
+      "  ca-certificates \\\n"
+      "  build-essential \\\n"
+      "  cmake \\\n"
+      "  git \\\n"
+      "  libffi-dev \\\n"
+      "  libedit-dev \\\n"
+      "  zlib1g-dev \\\n"
+      "  clang-8 \\\n"
+      "  llvm-8 \\\n"
+      "  llvm-8-dev \\\n"
+      "  llvm-8-tools\n"
+      "\n"
+      "rm -rf /var/lib/apt/lists/*\n"
+      "\n"
+      "# Ensure v8 tools are the defaults (only if the paths exist)\n"
+      "if [ -x /usr/bin/llvm-config-8 ]; then\n"
+      "  update-alternatives --install /usr/bin/llvm-config llvm-config /usr/bin/llvm-config-8 100 || true\n"
+      "fi\n"
+      "if [ -x /usr/bin/clang-8 ]; then\n"
+      "  update-alternatives --install /usr/bin/clang clang /usr/bin/clang-8 100 || true\n"
+      "fi\n"
+      "if [ -x /usr/bin/clang++-8 ]; then\n"
+      "  update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-8 100 || true\n"
+      "fi\n"
+      "\n"
+      "# Build emojicode\n"
+      "git clone --depth=1 https://github.com/emojicode/emojicode.git /tmp/emojic\n"
+      "mkdir -p /tmp/emojic/build\n"
+      "cd /tmp/emojic/build\n"
+      "\n"
+      "LLVM_DIR=\"$(llvm-config --cmakedir 2>/dev/null || true)\"\n"
+      "if [ -z \"$LLVM_DIR\" ]; then\n"
+      "  LLVM_DIR=\"$(llvm-config --prefix)/lib/cmake/llvm\"\n"
+      "fi\n"
+      "\n"
+      "cmake -DLLVM_DIR=\"$LLVM_DIR\" ..\n"
+      "make -j\"$(nproc)\"\n"
+      "make install\n"
+      "rm -rf /tmp/emojic\n"
+      "EOF";
+  }
+
+  // Julia PATH nudge
+  if (s.env_path.empty() && s.base_image.rfind("julia:", 0) == 0) {
+    s.env_path = "/usr/local/julia/bin";
+  }
 }
 
 int main(int argc, char** argv) {
@@ -221,90 +392,99 @@ int main(int argc, char** argv) {
     auto process_line = [&](const std::string& raw_line) {
       std::string line = raw_line;
       if (trim(line).empty()) return;
-
-      // allow comments in TSV
       if (!trim(line).empty() && trim(line)[0] == '#') return;
 
       auto cols = split_tabs(line);
 
-      // Required-ish
-      const std::string slug       = trim(get(cols, "slug",       0));
-      const std::string file       = trim(get(cols, "file",       1));
-      const std::string base_image = trim(get(cols, "base_image", 2));
+      LangSpec spec;
+      spec.slug       = trim(get(cols, "slug",       0));
+      spec.file       = trim(get(cols, "file",       1));
+      spec.base_image = trim(get(cols, "base_image", 2));
 
-      // Optional
-      std::string install_cmd = trim(get(cols, "install_cmd", kNoIndex));
-      std::string env_path    = trim(get(cols, "env_path",    kNoIndex));
+      spec.install_cmd = trim(get(cols, "install_cmd", kNoIndex));
+      spec.env_path    = trim(get(cols, "env_path",    kNoIndex));
 
-      // Common
-      std::string build_cmd   = trim(get(cols, "build_cmd",   3));
-      std::string run_cmd     = trim(get(cols, "run_cmd",     4));
-      std::string hello       = get(cols, "hello",           5);
+      spec.build_cmd   = trim(get(cols, "build_cmd",   3));
+      spec.run_cmd     = trim(get(cols, "run_cmd",     4));
+      spec.hello       = get(cols, "hello",           5);
 
-      if (slug.empty() || file.empty() || base_image.empty() || run_cmd.empty()) {
+      if (spec.slug.empty() || spec.file.empty() || spec.base_image.empty() || spec.run_cmd.empty()) {
         std::cerr << "Skipping malformed line: " << line << "\n";
         return;
       }
 
-      // unescape fields
-      install_cmd = unescape(install_cmd);
-      env_path    = unescape(env_path);
-      build_cmd   = unescape(build_cmd);
-      run_cmd     = unescape(run_cmd);
-      hello       = unescape(hello);
+      // Unescape + strip BOMs
+      spec.slug        = strip_utf8_bom(unescape(spec.slug));
+      spec.file        = strip_utf8_bom(unescape(spec.file));
+      spec.base_image  = strip_utf8_bom(unescape(spec.base_image));
+      spec.install_cmd = strip_utf8_bom(unescape(spec.install_cmd));
+      spec.env_path    = strip_utf8_bom(unescape(spec.env_path));
+      spec.build_cmd   = strip_utf8_bom(unescape(spec.build_cmd));
+      spec.run_cmd     = strip_utf8_bom(unescape(spec.run_cmd));
+      spec.hello       = strip_utf8_bom(unescape(spec.hello));
 
-      // Julia PATH nudge
-      if (env_path.empty() && base_image.rfind("julia:", 0) == 0) {
-        env_path = "/usr/local/julia/bin";
-      }
+      // Apply durable fixups
+      apply_fixups(spec);
 
       // Determine filename to generate/copy.
-      std::string effective_file = normalize_filename(file);
+      std::string effective_file = normalize_filename(spec.file);
       const std::string ext = file_ext(effective_file);
 
-      const std::string build_ref = normalize_filename(find_last_file_ref(build_cmd, ext));
-      const std::string run_ref   = normalize_filename(find_last_file_ref(run_cmd, ext));
+      const std::string build_ref = normalize_filename(find_last_file_ref(spec.build_cmd, ext));
+      const std::string run_ref   = normalize_filename(find_last_file_ref(spec.run_cmd, ext));
 
       if (!build_ref.empty()) effective_file = build_ref;
       else if (!run_ref.empty()) effective_file = run_ref;
 
-      fs::path dir = languages_dir / slug;
+      fs::path dir = languages_dir / spec.slug;
       fs::create_directories(dir);
 
-      // Make sure Docker build context includes the source file:
-      // overwrite/replace any bad .dockerignore that might be excluding everything.
-      // (Only overwrites when --force, otherwise creates if missing.)
+      // Ensure build context isn't accidentally excluding everything.
       const std::string dockerignore =
         ".DS_Store\n"
         ".git\n"
         ".gitignore\n";
-      write_file_if_needed(dir / ".dockerignore", dockerignore, force);
+      write_file(dir / ".dockerignore", dockerignore, force);
 
-      // Critical macOS case-only rename handling:
-      // remove conflicts, then write the file with the exact name Dockerfile expects.
+      // macOS case-only rename handling:
       remove_case_insensitive_conflicts(dir, effective_file);
-      write_file_if_needed(dir / effective_file, hello + "\n", true /* always write exact-name */);
+
+      // Ensure hello ends with newline
+      std::string hello_content = spec.hello;
+      if (!ends_with_nl(hello_content)) hello_content.push_back('\n');
+      write_file(dir / effective_file, hello_content, true /* always write exact-name */);
 
       // Dockerfile
       std::ostringstream dockerfile;
       dockerfile
         << "# syntax=docker/dockerfile:1\n"
-        << "FROM " << base_image << "\n"
+        << "FROM " << spec.base_image << "\n"
         << "WORKDIR /app\n";
-      if (!install_cmd.empty()) dockerfile << "RUN " << install_cmd << "\n";
-      if (!env_path.empty()) dockerfile << "ENV PATH=\"" << env_path << ":$PATH\"\n";
-      dockerfile << "COPY " << effective_file << " .\n";
-      if (!build_cmd.empty()) dockerfile << "RUN " << build_cmd << "\n";
-      dockerfile << "CMD [\"sh\", \"-c\", \"" << json_escape(run_cmd) << "\"]\n";
 
-      write_file_if_needed(dir / "Dockerfile", dockerfile.str(), force);
+      if (!spec.install_cmd.empty()) {
+        std::string trimmed_install = trim(spec.install_cmd);
+        if (trimmed_install.rfind("<<", 0) == 0) {
+          dockerfile << "RUN " << trimmed_install << "\n";
+        } else {
+          dockerfile << "RUN " << spec.install_cmd << "\n";
+        }
+      }
+
+      if (!spec.env_path.empty())
+        dockerfile << "ENV PATH=\"" << spec.env_path << ":$PATH\"\n";
+
+      dockerfile << "COPY " << effective_file << " .\n";
+      if (!spec.build_cmd.empty()) dockerfile << "RUN " << spec.build_cmd << "\n";
+      dockerfile << "CMD [\"sh\", \"-c\", \"" << json_escape(spec.run_cmd) << "\"]\n";
+
+      write_file(dir / "Dockerfile", dockerfile.str(), force);
 
       // run.sh
       std::ostringstream runsh;
       runsh
         << "#!/usr/bin/env bash\n"
         << "set -euo pipefail\n"
-        << "IMG=\"hello-" << slug << "\"\n"
+        << "IMG=\"hello-" << spec.slug << "\"\n"
         << "PLATFORM=\"${POLYGLOT_PLATFORM:-}\"\n"
         << "if [ -n \"$PLATFORM\" ]; then\n"
         << "  docker build --platform \"$PLATFORM\" -t \"$IMG\" .\n"
@@ -314,13 +494,13 @@ int main(int argc, char** argv) {
         << "  docker run --rm \"$IMG\"\n"
         << "fi\n";
 
-      write_file_if_needed(dir / "run.sh", runsh.str(), force);
+      write_file(dir / "run.sh", runsh.str(), force);
 
       fs::permissions(dir / "run.sh",
                       fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec,
                       fs::perm_options::add);
 
-      std::cout << "Scaffolded: " << slug << "\n";
+      std::cout << "Scaffolded: " << spec.slug << "\n";
     };
 
     if (!has_header) process_line(first);

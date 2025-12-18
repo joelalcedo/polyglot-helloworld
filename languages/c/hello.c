@@ -1,1 +1,2 @@
-int puts(const char*); int main(){ puts("Hello, world!"); return 0; }
+#include <stdio.h>
+int main(){ puts("Hello, world!"); return 0; }

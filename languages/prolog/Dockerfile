@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM alpine:3.20
+FROM swipl:latest
 WORKDIR /app
-COPY hello.prolog .
-CMD ["sh", "-c", "echo \"Hello, world!\""]
+COPY hello.pl .
+CMD ["sh", "-c", "swipl -q -f hello.pl -t main -g halt"]

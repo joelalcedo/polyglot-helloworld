@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM alpine:3.20
+FROM swift:latest
 WORKDIR /app
 COPY hello.swift .
-CMD ["sh", "-c", "echo \"Hello, world!\""]
+CMD ["sh", "-c", "swift hello.swift"]

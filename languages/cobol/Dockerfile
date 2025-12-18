@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1
-FROM alpine:3.20
+FROM debian:bookworm-slim
 WORKDIR /app
-COPY hello.cobol .
-CMD ["sh", "-c", "echo \"Hello, world!\""]
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gnucobol build-essential && rm -rf /var/lib/apt/lists/*
+COPY hello.cob .
+RUN cobc -x -free hello.cob -o hello
+CMD ["sh", "-c", "./hello"]
