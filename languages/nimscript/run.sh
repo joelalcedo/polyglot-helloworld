@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-IMG="hello-vala"
+IMG="hello-nimscript"
 PLATFORM="${POLYGLOT_PLATFORM:-}"
 if [ -n "$PLATFORM" ]; then
   docker build --platform "$PLATFORM" -t "$IMG" .

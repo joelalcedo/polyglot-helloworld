@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-IMG="hello-pike"
+IMG="hello-awk_posix"
 PLATFORM="${POLYGLOT_PLATFORM:-}"
 if [ -n "$PLATFORM" ]; then
   docker build --platform "$PLATFORM" -t "$IMG" .
