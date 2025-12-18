@@ -1,5 +1,5 @@
-slug	file	base_image	build_cmd	run_cmd	hello
-julia	hello.jl	julia:1.10		julia hello.jl	println("Hello, world!")
-node	hello.js	node:20-alpine		node hello.js	console.log("Hello, world!");
-ruby	hello.rb	ruby:3.3-alpine		ruby hello.rb	puts "Hello, world!"
-lua	hello.lua	lua:5.4		lua hello.lua	print("Hello, world!")
+slug	file	base_image	install_cmd	env_path	build_cmd	run_cmd	hello
+node	hello.js	node:20-alpine				node hello.js	console.log("Hello, world!");
+ruby	hello.rb	ruby:3.3-alpine				ruby hello.rb	puts "Hello, world!"
+julia	hello.jl	julia:1.10		/usr/local/julia/bin		julia hello.jl	println("Hello, world!")
+lua	hello.lua	alpine:3.20	apk add --no-cache lua5.4			lua5.4 hello.lua	print("Hello, world!")
