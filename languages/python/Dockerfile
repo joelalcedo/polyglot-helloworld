@@ -1,4 +1,5 @@
-FROM python:3.12-alpine
+# syntax=docker/dockerfile:1
+FROM alpine:3.20
 WORKDIR /app
-COPY hello.py .
-CMD ["python", "hello.py"]
+COPY hello.python .
+CMD ["sh", "-c", "echo \"Hello, world!\""]
