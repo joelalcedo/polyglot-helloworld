@@ -97,7 +97,7 @@ Result:
 ```
 Hello World (C)
 Hello World (Rust)
-Hello World (Brainf***?)
+Hello World (emojicode)
 Hello World (…why does this exist)
 ```
 
