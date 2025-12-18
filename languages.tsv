@@ -3,3 +3,9 @@ node	hello.js	node:20-alpine				node hello.js	console.log("Hello, world!");
 ruby	hello.rb	ruby:3.3-alpine				ruby hello.rb	puts "Hello, world!"
 julia	hello.jl	julia:1.10		/usr/local/julia/bin		julia hello.jl	println("Hello, world!")
 lua	hello.lua	alpine:3.20	apk add --no-cache lua5.4			lua5.4 hello.lua	print("Hello, world!")
+go	hello.go	golang:1.23-alpine			go build -o hello hello.go	./hello	package main; import "fmt"; func main(){ fmt.Println("Hello, world!") }
+rust	hello.rs	rust:1.76			rustc hello.rs -O	./hello	fn main(){ println!("Hello, world!"); }
+c	hello.c	alpine:3.20	apk add --no-cache build-base		cc -O2 -o hello hello.c	./hello	int puts(const char*); int main(){ puts("Hello, world!"); return 0; }
+java	Hello.java	alpine:3.20	apk add --no-cache openjdk17-jdk		javac Hello.java	java Hello	public class Hello { public static void main(String[] args){ System.out.println("Hello, world!"); } }
+php	hello.php	php:8.3-cli-alpine				php hello.php	<?php echo "Hello, world!"; ?>
+perl	hello.pl	alpine:3.20	apk add --no-cache perl			perl hello.pl	print "Hello, world!";

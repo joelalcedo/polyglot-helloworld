@@ -85,9 +85,89 @@ static bool write_file_if_needed(const fs::path& p, const std::string& content, 
 
 static bool looks_like_header(const std::vector<std::string>& cols) {
   if (cols.empty()) return false;
-  auto c0 = lower(trim(cols[0]));
-  // permissive: if first column is slug, assume header
-  return c0 == "slug";
+  return lower(trim(cols[0])) == "slug";
+}
+
+static bool ends_with(const std::string& s, const std::string& suf) {
+  return s.size() >= suf.size() && s.compare(s.size() - suf.size(), suf.size(), suf) == 0;
+}
+
+static std::string file_ext(const std::string& s) {
+  auto pos = s.rfind('.');
+  if (pos == std::string::npos) return "";
+  return s.substr(pos); // includes '.'
+}
+
+static std::string strip_trailing_punct(std::string t) {
+  while (!t.empty()) {
+    char c = t.back();
+    if (c == ';' || c == ',' || c == ')' || c == ']' || c == '\r' || c == '\n') t.pop_back();
+    else break;
+  }
+  return t;
+}
+
+// basic tokenizer: whitespace split, respecting simple single/double quotes
+static std::vector<std::string> shellish_split(const std::string& s) {
+  std::vector<std::string> out;
+  std::string cur;
+  bool in_single = false, in_double = false;
+  for (char c : s) {
+    if (c == '\'' && !in_double) { in_single = !in_single; continue; }
+    if (c == '"'  && !in_single) { in_double = !in_double; continue; }
+
+    if (!in_single && !in_double && std::isspace((unsigned char)c)) {
+      if (!cur.empty()) { out.push_back(cur); cur.clear(); }
+      continue;
+    }
+    cur.push_back(c);
+  }
+  if (!cur.empty()) out.push_back(cur);
+  return out;
+}
+
+static std::string normalize_filename(const std::string& tok) {
+  // Strip leading ./ and any directories, keep just the leaf name.
+  fs::path p(tok);
+  auto leaf = p.filename().string();
+  if (leaf.rfind("./", 0) == 0) leaf = leaf.substr(2);
+  return leaf;
+}
+
+static std::string find_last_file_ref(const std::string& cmd, const std::string& ext) {
+  if (cmd.empty() || ext.empty()) return "";
+  std::string last;
+  for (auto tok : shellish_split(cmd)) {
+    tok = strip_trailing_punct(tok);
+    tok = normalize_filename(tok);
+    if (ends_with(tok, ext)) last = tok;
+  }
+  return last;
+}
+
+static void remove_quiet(const fs::path& p) {
+  std::error_code ec;
+  fs::remove(p, ec);
+}
+
+static void remove_case_insensitive_conflicts(const fs::path& dir, const std::string& target) {
+  // On default macOS filesystems, changing only case can be tricky.
+  // Remove any file whose lower(name) matches lower(target) but name != target.
+  std::error_code ec;
+  if (!fs::exists(dir, ec)) return;
+
+  const std::string target_l = lower(target);
+  for (const auto& entry : fs::directory_iterator(dir, ec)) {
+    if (ec) break;
+    if (!entry.is_regular_file(ec)) continue;
+    const std::string name = entry.path().filename().string();
+    if (lower(name) == target_l && name != target) {
+      remove_quiet(entry.path());
+    }
+  }
+  // Also remove exactly-target path if it exists (force regeneration cases).
+  // (On case-insensitive FS this may remove the “other case” too, which is fine.)
+  remove_quiet(dir / target);
 }
 
 int main(int argc, char** argv) {
@@ -147,17 +227,16 @@ int main(int argc, char** argv) {
 
       auto cols = split_tabs(line);
 
-      // Legacy fallback order (no header):
-      // slug, file, base_image, build_cmd, run_cmd, hello
-      const std::string slug      = trim(get(cols, "slug",      0));
-      const std::string file      = trim(get(cols, "file",      1));
-      const std::string base_image= trim(get(cols, "base_image",2));
+      // Required-ish
+      const std::string slug       = trim(get(cols, "slug",       0));
+      const std::string file       = trim(get(cols, "file",       1));
+      const std::string base_image = trim(get(cols, "base_image", 2));
 
-      // Optional (header-based) columns:
+      // Optional
       std::string install_cmd = trim(get(cols, "install_cmd", kNoIndex));
       std::string env_path    = trim(get(cols, "env_path",    kNoIndex));
 
-      // Always available either via header or legacy fallback
+      // Common
       std::string build_cmd   = trim(get(cols, "build_cmd",   3));
       std::string run_cmd     = trim(get(cols, "run_cmd",     4));
       std::string hello       = get(cols, "hello",           5);
@@ -167,37 +246,55 @@ int main(int argc, char** argv) {
         return;
       }
 
-      // Support \n etc in fields
+      // unescape fields
       install_cmd = unescape(install_cmd);
       env_path    = unescape(env_path);
       build_cmd   = unescape(build_cmd);
       run_cmd     = unescape(run_cmd);
       hello       = unescape(hello);
 
-      // “Just works” nudge: Julia images put julia in /usr/local/julia/bin (and often set PATH),
-      // but we keep it explicit if user didn't specify env_path.
+      // Julia PATH nudge
       if (env_path.empty() && base_image.rfind("julia:", 0) == 0) {
         env_path = "/usr/local/julia/bin";
       }
 
+      // Determine filename to generate/copy.
+      std::string effective_file = normalize_filename(file);
+      const std::string ext = file_ext(effective_file);
+
+      const std::string build_ref = normalize_filename(find_last_file_ref(build_cmd, ext));
+      const std::string run_ref   = normalize_filename(find_last_file_ref(run_cmd, ext));
+
+      if (!build_ref.empty()) effective_file = build_ref;
+      else if (!run_ref.empty()) effective_file = run_ref;
+
       fs::path dir = languages_dir / slug;
       fs::create_directories(dir);
 
-      // hello source
-      write_file_if_needed(dir / file, hello + "\n", force);
+      // Make sure Docker build context includes the source file:
+      // overwrite/replace any bad .dockerignore that might be excluding everything.
+      // (Only overwrites when --force, otherwise creates if missing.)
+      const std::string dockerignore =
+        ".DS_Store\n"
+        ".git\n"
+        ".gitignore\n";
+      write_file_if_needed(dir / ".dockerignore", dockerignore, force);
+
+      // Critical macOS case-only rename handling:
+      // remove conflicts, then write the file with the exact name Dockerfile expects.
+      remove_case_insensitive_conflicts(dir, effective_file);
+      write_file_if_needed(dir / effective_file, hello + "\n", true /* always write exact-name */);
 
       // Dockerfile
       std::ostringstream dockerfile;
       dockerfile
-      << "# syntax=docker/dockerfile:1\n"
-      << "FROM " << base_image << "\n"
-      << "WORKDIR /app\n";
+        << "# syntax=docker/dockerfile:1\n"
+        << "FROM " << base_image << "\n"
+        << "WORKDIR /app\n";
       if (!install_cmd.empty()) dockerfile << "RUN " << install_cmd << "\n";
       if (!env_path.empty()) dockerfile << "ENV PATH=\"" << env_path << ":$PATH\"\n";
-      dockerfile << "COPY " << file << " .\n";
+      dockerfile << "COPY " << effective_file << " .\n";
       if (!build_cmd.empty()) dockerfile << "RUN " << build_cmd << "\n";
-
-      // IMPORTANT: no "-l" (login shell). Keep container ENV intact.
       dockerfile << "CMD [\"sh\", \"-c\", \"" << json_escape(run_cmd) << "\"]\n";
 
       write_file_if_needed(dir / "Dockerfile", dockerfile.str(), force);
@@ -226,9 +323,7 @@ int main(int argc, char** argv) {
       std::cout << "Scaffolded: " << slug << "\n";
     };
 
-    if (!has_header) {
-      process_line(first); // first line is data
-    }
+    if (!has_header) process_line(first);
 
     std::string line;
     while (std::getline(in, line)) {
