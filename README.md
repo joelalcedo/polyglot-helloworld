@@ -84,8 +84,6 @@ It:
 * Writes run scripts
 * Keeps everything consistent
 
-Think of it as *infrastructure-as-code*, but for chaos.
-
 ### 3. `run_all.sh`
 
 The fun part.
@@ -143,7 +141,7 @@ PRs welcome. Mockery optional.
 
 ## Contributing
 
-If this made you smile even a little, contributions are very welcome.
+Contributions are very welcome.
 
 Ways to help:
 
