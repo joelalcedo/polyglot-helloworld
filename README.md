@@ -82,6 +82,7 @@ It:
 * Creates a directory per language
 * Writes Dockerfiles
 * Writes run scripts
+* Writes language-specific "hello world" script
 * Keeps everything consistent
 
 ### 3. `run_all.sh`
