@@ -98,7 +98,7 @@ Result:
 ```
 Hello World (C)
 Hello World (Rust)
-Hello World (emojicode)
+Hello World (COBOL)
 Hello World (…why does this exist)
 ```
 
