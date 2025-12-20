@@ -12,7 +12,7 @@ https://github.com/user-attachments/assets/2675cbbe-8ea6-42b9-bca5-556c9cc0d760
 
 ## What this is (high level)
 
-At its core, this project is a **language-agnostic execution framework**:
+This project is a **language-agnostic execution framework**:
 
 * One language definition file
 * One code generator
@@ -165,10 +165,10 @@ Ways to help:
 * [x] Docker-based execution per language
 * [x] Single-command execution (`run_all.sh`)
 * [x] 50 languages supported
+* [x] Improve terminal output formatting (grouping, colors, etc.)
 
 ### 🚧 In Progress / Planned
 
-* [ ] Improve terminal output formatting (grouping, colors, etc.)
 * [ ] Expand to **100+ languages**
 * [ ] Expand to **200+ languages**
 * [ ] Expand to **300+ languages** (because why not)
