@@ -1,13 +1,3 @@
-// scaffold.cpp (drop-in replacement)
-//
-// Fixes remaining failures:
-// - COBOL: gnucobol defaults to fixed-format; your hello.cob is free-format.
-//          We automatically add `-free` to `cobc` invocations for slug=cobol.
-// - Emojicode: previous injection broke the apt-get continuation (`\`), causing
-//              "build-essential: not found". We now *replace* emojicode's
-//              install_cmd with a robust heredoc that installs LLVM/Clang 8 on
-//              Ubuntu 20.04 and builds emojicode without fragile line-splices.
-
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
