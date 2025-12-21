@@ -6,12 +6,7 @@ I fell down this rabbit hole after stumbling across the *Hello World* collection
 
 So here we are.
 
-<video src="https://github.com/user-attachments/assets/2675cbbe-8ea6-42b9-bca5-556c9cc0d760" autoplay loop muted playsinline controls>
-  Your browser does not support the video tag.
-</video>
-
-
-https://github.com/user-attachments/assets/2675cbbe-8ea6-42b9-bca5-556c9cc0d760
+<video src="https://github.com/user-attachments/assets/2675cbbe-8ea6-42b9-bca5-556c9cc0d760" autoplay loop muted playsinline controls></video>
 
 ---
 
