@@ -48,23 +48,44 @@ bc	hello.bc	alpine:3.20	apk add --no-cache bc			bc -q hello.bc	print "Hello, wor
 jq	hello.jq	alpine:3.20	apk add --no-cache jq			jq -nr -f hello.jq	"Hello, world!"
 verilog	hello.v	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends iverilog && rm -rf /var/lib/apt/lists/*		iverilog -o hello hello.v	vvp hello	module hello;\n  initial begin\n    $display("Hello, world!");\n    $finish;\n  end\nendmodule
 sql	hello.sql	alpine:3.20	apk add --no-cache sqlite			sqlite3 :memory: < hello.sql	select 'Hello, world!';
-haskell	hello.hs	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends ghc && rm -rf /var/lib/apt/lists/*		ghc -O2 -o hello hello.hs	./hello	main = putStrLn "Hello, world!"
-elixir	hello.exs	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends elixir && rm -rf /var/lib/apt/lists/*			elixir hello.exs	IO.puts("Hello, world!")
-clojure	hello.clj	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends clojure default-jre-headless && rm -rf /var/lib/apt/lists/*			clojure hello.clj	(println "Hello, world!")
 scheme	hello.scm	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends guile-3.0 && rm -rf /var/lib/apt/lists/*			guile hello.scm	(display "Hello, world!\n")
-racket	hello.rkt	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends racket && rm -rf /var/lib/apt/lists/*			racket hello.rkt	#lang racket\n(displayln "Hello, world!")
-groovy	hello.groovy	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends groovy default-jre-headless && rm -rf /var/lib/apt/lists/*			groovy hello.groovy	println "Hello, world!"
 d	hello.d	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends gdc && rm -rf /var/lib/apt/lists/*		gdc -O2 -o hello hello.d	./hello	import std.stdio; void main(){ writeln("Hello, world!"); }
-ada	hello.adb	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends gnat && rm -rf /var/lib/apt/lists/*		gnatmake -O2 -o hello hello.adb	./hello	with Ada.Text_IO; use Ada.Text_IO; procedure Hello is begin Put_Line("Hello, world!"); end Hello;
-octave	hello.m	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends octave && rm -rf /var/lib/apt/lists/*			octave --quiet --no-gui hello.m	disp("Hello, world!");
-powershell	hello.ps1	mcr.microsoft.com/powershell:7.4-debian-12				pwsh -File hello.ps1	Write-Output "Hello, world!"
-fsharp	Program.fs	mcr.microsoft.com/dotnet/sdk:8.0			dotnet new console -lang "F#" -o app --force && cp Program.fs app/Program.fs && dotnet build app -c Release -v q	dotnet run --project app -c Release	open System\n[<EntryPoint>]\nlet main _ = printfn "Hello, world!"; 0
 objective_c	hello.m	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends gcc gobjc libobjc-12-dev && rm -rf /var/lib/apt/lists/*		gcc -x objective-c -O2 -o hello hello.m -lobjc	./hello	#include <stdio.h>\nint main(){ puts("Hello, world!"); return 0; }
-bc	hello.bc	alpine:3.20	apk add --no-cache bc			bc -q hello.bc	print "Hello, world!\n"
-jq	hello.jq	alpine:3.20	apk add --no-cache jq			jq -nr -f hello.jq	"Hello, world!"
 verilog	hello.v	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends iverilog && rm -rf /var/lib/apt/lists/*		iverilog -o hello hello.v	vvp hello	module hello; initial begin $display("Hello, world!"); $finish; end endmodule
 sql	hello.sql	alpine:3.20	apk add --no-cache sqlite			sqlite3 :memory: < hello.sql	select 'Hello, world!';
 nimscript	hello.nims	alpine:3.20	apk add --no-cache nim			nim e hello.nims	echo "Hello, world!"
 awk_posix	hello.awk	alpine:3.20				awk '{print "Hello, world!"}' hello.awk	BEGIN {}
 cobol	hello.cob	debian:bookworm-slim	apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gnucobol build-essential && rm -rf /var/lib/apt/lists/*		cobc -x -free hello.cob -o hello	./hello	IDENTIFICATION DIVISION.\nPROGRAM-ID. HELLO.\nPROCEDURE DIVISION.\n    DISPLAY "Hello, world!".\n    STOP RUN.
 pascal	hello.pas	debian:bookworm-slim	apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends fp-compiler && rm -rf /var/lib/apt/lists/*		fpc -O2 hello.pas	./hello	program Hello;\nbegin\n  writeln('Hello, world!');\nend.
+abcl	hello.lisp	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends abcl && rm -rf /var/lib/apt/lists/*			abcl --load hello.lisp --eval "(quit)"	(format t "Hello, world!~%")
+awk_gawk	hello.awk	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends gawk && rm -rf /var/lib/apt/lists/*			gawk -f hello.awk	BEGIN{print "Hello, world!"}
+awk_mawk	hello.awk	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends mawk && rm -rf /var/lib/apt/lists/*			mawk -f hello.awk	BEGIN{print "Hello, world!"}
+awk_original	hello.awk	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends original-awk && rm -rf /var/lib/apt/lists/*			awk -f hello.awk	BEGIN{print "Hello, world!"}
+basic_yabasic	hello.bas	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends yabasic && rm -rf /var/lib/apt/lists/*			yabasic hello.bas	PRINT "Hello, world!"
+bun	hello.ts	oven/bun:alpine				bun run hello.ts	console.log("Hello, world!");
+chicken	hello.scm	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends chicken-bin && rm -rf /var/lib/apt/lists/*			csi -s hello.scm	(print "Hello, world!")
+clisp	hello.lisp	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends clisp && rm -rf /var/lib/apt/lists/*			clisp hello.lisp	(format t "Hello, world!~%")
+coffeescript	hello.coffee	node:20-alpine	npm i -g coffeescript			coffee hello.coffee	console.log "Hello, world!"
+dash	hello.sh	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends dash && rm -rf /var/lib/apt/lists/*			dash hello.sh	echo "Hello, world!"
+dc	hello.dc	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends dc && rm -rf /var/lib/apt/lists/*			dc -f hello.dc	[Hello, world!]P
+deno	hello.ts	denoland/deno:alpine				deno run --allow-all hello.ts	console.log("Hello, world!");
+ecl	hello.lisp	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends ecl && rm -rf /var/lib/apt/lists/*			ecl -load hello.lisp -eval "(quit)"	(format t "Hello, world!~%")
+erlang	hello.erl	erlang:27-alpine			erlc hello.erl	erl -noshell -s hello main -s init stop	-module(hello).\n-export([main/0]).\nmain() -> io:format("Hello, world!~n").
+expect	hello.exp	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends expect && rm -rf /var/lib/apt/lists/*			expect hello.exp	puts "Hello, world!"
+fish	hello.fish	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends fish && rm -rf /var/lib/apt/lists/*			fish hello.fish	echo "Hello, world!"
+gambit	hello.scm	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends gambc && rm -rf /var/lib/apt/lists/*			gsi hello.scm	(display "Hello, world!") (newline)
+gnuplot	hello.gp	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends gnuplot && rm -rf /var/lib/apt/lists/*			gnuplot -e "print 'Hello, world!'"	print "Hello, world!"
+guile	hello.scm	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends guile-3.0 && rm -rf /var/lib/apt/lists/*			guile -s hello.scm	(display "Hello, world!") (newline)
+hy	hello.hy	python:3.12-slim	pip install --no-cache-dir hy			hy hello.hy	(print "Hello, world!")
+jsonnet	hello.jsonnet	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends jsonnet && rm -rf /var/lib/apt/lists/*			jsonnet -S hello.jsonnet	"Hello, world!"
+ksh	hello.ksh	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends ksh && rm -rf /var/lib/apt/lists/*			ksh hello.ksh	echo "Hello, world!"
+livescript	hello.ls	node:20-alpine	npm i -g livescript			lsc hello.ls	console.log 'Hello, world!'
+lua53	hello.lua	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends lua5.3 && rm -rf /var/lib/apt/lists/*			lua5.3 hello.lua	print("Hello, world!")
+lua54	hello.lua	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends lua5.4 && rm -rf /var/lib/apt/lists/*			lua5.4 hello.lua	print("Hello, world!")
+luajit	hello.lua	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends luajit && rm -rf /var/lib/apt/lists/*			luajit hello.lua	print("Hello, world!")
+mksh	hello.mksh	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends mksh && rm -rf /var/lib/apt/lists/*			mksh hello.mksh	echo "Hello, world!"
+prolog_swi	hello.pl	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends swi-prolog && rm -rf /var/lib/apt/lists/*			swipl -q -s hello.pl -t main	:- initialization(main).\nmain :- writeln('Hello, world!').
+raku	hello.raku	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends rakudo && rm -rf /var/lib/apt/lists/*			raku hello.raku	say "Hello, world!";
+sbcl	hello.lisp	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends sbcl && rm -rf /var/lib/apt/lists/*			sbcl --noinform --script hello.lisp	(format t "Hello, world!~%")
+v	hello.v	thevlang/vlang:alpine			v -prod -o hello hello.v	./hello	fn main(){println("Hello, world!")}
+zsh	hello.zsh	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends zsh && rm -rf /var/lib/apt/lists/*			zsh hello.zsh	echo "Hello, world!"
