@@ -89,3 +89,9 @@ raku	hello.raku	debian:bookworm-slim	apt-get update && apt-get install -y --no-i
 sbcl	hello.lisp	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends sbcl && rm -rf /var/lib/apt/lists/*			sbcl --noinform --script hello.lisp	(format t "Hello, world!~%")
 v	hello.v	thevlang/vlang:alpine			v -prod -o hello hello.v	./hello	fn main(){println("Hello, world!")}
 zsh	hello.zsh	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends zsh && rm -rf /var/lib/apt/lists/*			zsh hello.zsh	echo "Hello, world!"
+crystal	hello.cr	crystallang/crystal:latest			crystal build hello.cr -o hello	./hello	puts "Hello, world!"
+haxe	Hello.hx	haxe:latest				haxe --main Hello --interp	class Hello { static function main() { Sys.println("Hello, world!"); } }
+pike	hello.pike	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends pike8.0 && rm -rf /var/lib/apt/lists/*			pike8.0 hello.pike	int main(){ write("Hello, world!\\n"); return 0; }
+rexx	hello.rexx	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends regina-rexx && rm -rf /var/lib/apt/lists/*			rexx ./hello.rexx	say "Hello, world!"
+janet	hello.janet	alpine:3.20	apk add --no-cache janet			janet hello.janet	(print "Hello, world!")
+vala	hello.vala	debian:bookworm-slim	apt-get update && apt-get install -y --no-install-recommends valac build-essential && rm -rf /var/lib/apt/lists/*		valac -o hello hello.vala	./hello	using GLib; int main(){ stdout.printf("Hello, world!\\n"); return 0; }
